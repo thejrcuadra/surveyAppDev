@@ -1,3 +1,4 @@
+// App.js
 import React, { useState } from 'react';
 import './App.css';
 import { Dexie } from 'dexie';
@@ -14,9 +15,8 @@ db.version(1).stores({
 const { surveys, respondents, questions } = db;
 
 function App() {
-  // Fetch data using useLiveQuery
   const allSurveys = useLiveQuery(() => surveys.toArray(), []) || [];
-
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -28,6 +28,11 @@ function App() {
   const [tempQuestions, setTempQuestions] = useState([]);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [responseAnswers, setResponseAnswers] = useState({});
+  const [selectedRespondentId, setSelectedRespondentId] = useState('');
+  const [customRespondentName, setCustomRespondentName] = useState('');
+  const [customRespondentEmail, setCustomRespondentEmail] = useState('');
+  const [showCustomFields, setShowCustomFields] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleAddRespondent = () => {
     if (newRespondentName && newRespondentEmail) {
@@ -53,12 +58,10 @@ function App() {
   const handleCreateSurvey = async (e) => {
     e.preventDefault();
     if (newSurveyTitle && tempRespondents.length > 0 && tempQuestions.length > 0) {
-      // Add survey to Dexie
       const surveyId = await surveys.add({
         title: newSurveyTitle,
       });
 
-      // Add respondents to Dexie, associating them with the survey
       const respondentPromises = tempRespondents.map(respondent =>
         respondents.add({
           name: respondent.name,
@@ -68,7 +71,6 @@ function App() {
       );
       await Promise.all(respondentPromises);
 
-      // Add questions to Dexie, associating them with the survey
       const questionPromises = tempQuestions.map(question =>
         questions.add({
           text: question.text,
@@ -78,7 +80,6 @@ function App() {
       );
       await Promise.all(questionPromises);
 
-      // Reset form
       setNewSurveyTitle('');
       setTempRespondents([]);
       setTempQuestions([]);
@@ -90,11 +91,8 @@ function App() {
 
   const handleDeleteSurvey = async (id) => {
     if (window.confirm('Are you sure you want to delete this survey?')) {
-      // Delete survey
       await surveys.delete(id);
-      // Delete associated respondents
       await respondents.where('surveyId').equals(id).delete();
-      // Delete associated questions
       await questions.where('surveyId').equals(id).delete();
     }
   };
@@ -107,9 +105,15 @@ function App() {
   };
 
   const handleSubmitResponse = async (survey) => {
+    const surveyRespondents = await respondents.where('surveyId').equals(survey.id).toArray();
     const surveyQuestions = await questions.where('surveyId').equals(survey.id).toArray();
-    setSelectedSurvey({ ...survey, questions: surveyQuestions });
+    setSelectedSurvey({ ...survey, respondents: surveyRespondents, questions: surveyQuestions });
     setResponseAnswers({});
+    setSelectedRespondentId('');
+    setShowCustomFields(false);
+    setCustomRespondentName('');
+    setCustomRespondentEmail('');
+    setErrorMessage('');
     setIsResponseModalOpen(true);
   };
 
@@ -117,22 +121,65 @@ function App() {
     setResponseAnswers({ ...responseAnswers, [questionId]: answer });
   };
 
+  const handleRespondentSelect = (e) => {
+    const value = e.target.value;
+    if (value === 'custom') {
+      setShowCustomFields(true);
+      setSelectedRespondentId('');
+    } else {
+      setShowCustomFields(false);
+      setSelectedRespondentId(value);
+      setCustomRespondentName('');
+      setCustomRespondentEmail('');
+    }
+    setErrorMessage('');
+  };
+
   const handleSubmitResponses = async (e) => {
     e.preventDefault();
+    let respondentId = selectedRespondentId;
+
+    if (showCustomFields) {
+      if (!customRespondentName || !customRespondentEmail) {
+        setErrorMessage('Please provide both name and email for the new respondent');
+        return;
+      }
+      // Add new respondent to database
+      respondentId = await respondents.add({
+        name: customRespondentName,
+        email: customRespondentEmail,
+        surveyId: selectedSurvey.id,
+      });
+      // Update selectedSurvey respondents
+      setSelectedSurvey({
+        ...selectedSurvey,
+        respondents: [
+          ...selectedSurvey.respondents,
+          { id: respondentId, name: customRespondentName, email: customRespondentEmail, surveyId: selectedSurvey.id }
+        ]
+      });
+    } else if (!respondentId) {
+      setErrorMessage('Please select a respondent or add a new one');
+      return;
+    }
+
     const updatedQuestions = selectedSurvey.questions.map(question => {
       if (responseAnswers[question.id]) {
         return {
           ...question,
           responses: [
             ...question.responses,
-            { respondentId: Date.now(), answer: responseAnswers[question.id] },
+            { 
+              respondentId: parseInt(respondentId), 
+              answer: responseAnswers[question.id],
+              timestamp: Date.now()
+            },
           ],
         };
       }
       return question;
     });
 
-    // Update questions in Dexie
     const updatePromises = updatedQuestions.map(question =>
       questions.update(question.id, { responses: question.responses })
     );
@@ -140,6 +187,11 @@ function App() {
 
     setIsResponseModalOpen(false);
     setResponseAnswers({});
+    setSelectedRespondentId('');
+    setShowCustomFields(false);
+    setCustomRespondentName('');
+    setCustomRespondentEmail('');
+    setErrorMessage('');
   };
 
   return (
@@ -264,21 +316,21 @@ function App() {
                 </li>
               ))}
             </ul>
-            <h3>Questions</h3>
-            <ul>
-              {selectedSurvey.questions.map(question => (
-                <li key={question.id}>{question.text}</li>
-              ))}
-            </ul>
-            <h3>Responses</h3>
+            <h3>Questions and Responses</h3>
             {selectedSurvey.questions.map(question => (
-              <div key={question.id}>
+              <div key={question.id} className="question-responses">
                 <p><strong>{question.text}</strong></p>
                 {question.responses.length > 0 ? (
                   <ul>
-                    {question.responses.map((response, idx) => (
-                      <li key={idx}>{response.answer}</li>
-                    ))}
+                    {question.responses.map((response, idx) => {
+                      const respondent = selectedSurvey.respondents.find(r => r.id === response.respondentId);
+                      return (
+                        <li key={idx}>
+                          {respondent ? `${respondent.name}: ` : 'Unknown respondent: '}
+                          {response.answer}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p>No responses yet.</p>
@@ -298,6 +350,44 @@ function App() {
             </button>
             <h2>Respond to: {selectedSurvey.title}</h2>
             <form onSubmit={handleSubmitResponses}>
+              <label htmlFor="respondent-select">Select Respondent</label>
+              <select
+                id="respondent-select"
+                value={selectedRespondentId}
+                onChange={handleRespondentSelect}
+              >
+                <option value="">-- Select Respondent --</option>
+                {selectedSurvey.respondents.map(respondent => (
+                  <option key={respondent.id} value={respondent.id}>
+                    {respondent.name} ({respondent.email})
+                  </option>
+                ))}
+                <option value="custom">Add New Respondent</option>
+              </select>
+
+              {showCustomFields && (
+                <div className="custom-respondent-input">
+                  <input
+                    type="text"
+                    placeholder="New Respondent Name"
+                    value={customRespondentName}
+                    onChange={(e) => setCustomRespondentName(e.target.value)}
+                    required={showCustomFields}
+                  />
+                  <input
+                    type="email"
+                    placeholder="New Respondent Email"
+                    value={customRespondentEmail}
+                    onChange={(e) => setCustomRespondentEmail(e.target.value)}
+                    required={showCustomFields}
+                  />
+                </div>
+              )}
+              
+              {errorMessage && (
+                <p className="error-message">{errorMessage}</p>
+              )}
+              
               {selectedSurvey.questions.map(question => (
                 <div key={question.id} className="response-input">
                   <label>{question.text}</label>
