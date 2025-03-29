@@ -1,8 +1,8 @@
-// App.js
 import React, { useState } from 'react';
 import './App.css';
 import { Dexie } from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { motion } from 'framer-motion';
 
 // Initialize Dexie database
 const db = new Dexie('surveyApp');
@@ -20,10 +20,12 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
+  const [isAddQuestionPopupOpen, setIsAddQuestionPopupOpen] = useState(false); // New state for popup
   const [newSurveyTitle, setNewSurveyTitle] = useState('');
   const [newRespondentName, setNewRespondentName] = useState('');
   const [newRespondentEmail, setNewRespondentEmail] = useState('');
   const [newQuestionText, setNewQuestionText] = useState('');
+  const [newQuestionInput, setNewQuestionInput] = useState(''); // New state for popup input
   const [tempRespondents, setTempRespondents] = useState([]);
   const [tempQuestions, setTempQuestions] = useState([]);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
@@ -104,6 +106,56 @@ function App() {
     setIsViewModalOpen(true);
   };
 
+  const handleDeleteRespondent = async (respondentId) => {
+    if (window.confirm('Are you sure you want to delete this respondent?')) {
+      await respondents.delete(respondentId);
+      const updatedQuestions = selectedSurvey.questions.map(question => {
+        const updatedResponses = question.responses.filter(
+          response => response.respondentId !== respondentId
+        );
+        return { ...question, responses: updatedResponses };
+      });
+      const updatePromises = updatedQuestions.map(question =>
+        questions.update(question.id, { responses: question.responses })
+      );
+      await Promise.all(updatePromises);
+      setSelectedSurvey({
+        ...selectedSurvey,
+        respondents: selectedSurvey.respondents.filter(r => r.id !== respondentId),
+        questions: updatedQuestions,
+      });
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    if (window.confirm('Are you sure you want to delete this question?')) {
+      await questions.delete(questionId);
+      setSelectedSurvey({
+        ...selectedSurvey,
+        questions: selectedSurvey.questions.filter(q => q.id !== questionId),
+      });
+    }
+  };
+
+  const handleAddNewQuestion = async () => {
+    if (newQuestionInput.trim()) {
+      const newQuestion = {
+        text: newQuestionInput,
+        surveyId: selectedSurvey.id,
+        responses: [],
+      };
+      const questionId = await questions.add(newQuestion);
+      setSelectedSurvey({
+        ...selectedSurvey,
+        questions: [...selectedSurvey.questions, { ...newQuestion, id: questionId }],
+      });
+      setNewQuestionInput('');
+      setIsAddQuestionPopupOpen(false);
+    } else {
+      alert('Please enter a question.');
+    }
+  };
+
   const handleSubmitResponse = async (survey) => {
     const surveyRespondents = await respondents.where('surveyId').equals(survey.id).toArray();
     const surveyQuestions = await questions.where('surveyId').equals(survey.id).toArray();
@@ -144,13 +196,11 @@ function App() {
         setErrorMessage('Please provide both name and email for the new respondent');
         return;
       }
-      // Add new respondent to database
       respondentId = await respondents.add({
         name: customRespondentName,
         email: customRespondentEmail,
         surveyId: selectedSurvey.id,
       });
-      // Update selectedSurvey respondents
       setSelectedSurvey({
         ...selectedSurvey,
         respondents: [
@@ -197,7 +247,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Surveys</h1>
+        <h1>Surveys!</h1>
       </header>
       <main className="survey-container">
         {allSurveys.length === 0 ? (
@@ -205,7 +255,13 @@ function App() {
         ) : (
           <ul className="survey-list">
             {allSurveys.map(survey => (
-              <li key={survey.id} className="survey-item">
+              <motion.li
+                key={survey.id}
+                className="survey-item"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
                 <span>{survey.title}</span>
                 <div>
                   <button className="view-btn" onClick={() => handleViewSurvey(survey)}>
@@ -221,7 +277,7 @@ function App() {
                     Delete
                   </button>
                 </div>
-              </li>
+              </motion.li>
             ))}
           </ul>
         )}
@@ -238,59 +294,65 @@ function App() {
               ×
             </button>
             <form onSubmit={handleCreateSurvey}>
-              <label htmlFor="survey-title">Survey Title</label>
-              <input
-                type="text"
-                id="survey-title"
-                value={newSurveyTitle}
-                onChange={(e) => setNewSurveyTitle(e.target.value)}
-                placeholder="Enter survey title"
-                autoFocus
-              />
-
-              <label>Respondents</label>
-              <div className="respondent-input">
+              <div className="form-group">
+                <label htmlFor="survey-title">Survey Title</label>
                 <input
                   type="text"
-                  placeholder="Name"
-                  value={newRespondentName}
-                  onChange={(e) => setNewRespondentName(e.target.value)}
+                  id="survey-title"
+                  value={newSurveyTitle}
+                  onChange={(e) => setNewSurveyTitle(e.target.value)}
+                  placeholder="Enter survey title"
+                  autoFocus
                 />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={newRespondentEmail}
-                  onChange={(e) => setNewRespondentEmail(e.target.value)}
-                />
-                <button type="button" className="add-btn" onClick={handleAddRespondent}>
-                  Add
-                </button>
               </div>
-              <ul className="respondent-list">
-                {tempRespondents.map(respondent => (
-                  <li key={respondent.id}>
-                    {respondent.name} ({respondent.email})
-                  </li>
-                ))}
-              </ul>
 
-              <label>Questions</label>
-              <div className="question-input">
-                <input
-                  type="text"
-                  placeholder="Enter question"
-                  value={newQuestionText}
-                  onChange={(e) => setNewQuestionText(e.target.value)}
-                />
-                <button type="button" className="add-btn" onClick={handleAddQuestion}>
-                  Add
-                </button>
+              <div className="form-group">
+                <label>Respondents</label>
+                <div className="respondent-input">
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={newRespondentName}
+                    onChange={(e) => setNewRespondentName(e.target.value)}
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={newRespondentEmail}
+                    onChange={(e) => setNewRespondentEmail(e.target.value)}
+                  />
+                  <button type="button" className="add-btn" onClick={handleAddRespondent}>
+                    Add
+                  </button>
+                </div>
+                <ul className="respondent-list">
+                  {tempRespondents.map(respondent => (
+                    <li key={respondent.id}>
+                      {respondent.name} ({respondent.email})
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="question-list">
-                {tempQuestions.map(question => (
-                  <li key={question.id}>{question.text}</li>
-                ))}
-              </ul>
+
+              <div className="form-group">
+                <label>Questions</label>
+                <div className="question-input">
+                  <input
+                    type="text"
+                    placeholder="Enter question"
+                    value={newQuestionText}
+                    onChange={(e) => setNewQuestionText(e.target.value)}
+                  />
+                  <button type="button" className="add-btn" onClick={handleAddQuestion}>
+                    Add
+                  </button>
+                </div>
+                <ul className="question-list">
+                  {tempQuestions.map(question => (
+                    <li key={question.id}>{question.text}</li>
+                  ))}
+                </ul>
+              </div>
 
               <button type="submit" className="submit-btn">
                 Create
@@ -311,15 +373,43 @@ function App() {
             <h3>Respondents</h3>
             <ul>
               {selectedSurvey.respondents.map(respondent => (
-                <li key={respondent.id}>
-                  {respondent.name} ({respondent.email})
-                </li>
+                <motion.li
+                  key={respondent.id}
+                  className="respondent-item"
+                  initial={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <span>{respondent.name} ({respondent.email})</span>
+                  <button
+                    className="delete-item-btn"
+                    onClick={() => handleDeleteRespondent(respondent.id)}
+                    title="Delete respondent"
+                  >
+                    🗑️
+                  </button>
+                </motion.li>
               ))}
             </ul>
             <h3>Questions and Responses</h3>
             {selectedSurvey.questions.map(question => (
-              <div key={question.id} className="question-responses">
-                <p><strong>{question.text}</strong></p>
+              <motion.div
+                key={question.id}
+                className="question-responses"
+                initial={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="question-header">
+                  <p><strong>{question.text}</strong></p>
+                  <button
+                    className="delete-item-btn"
+                    onClick={() => handleDeleteQuestion(question.id)}
+                    title="Delete question"
+                  >
+                    🗑️
+                  </button>
+                </div>
                 {question.responses.length > 0 ? (
                   <ul>
                     {question.responses.map((response, idx) => {
@@ -335,8 +425,45 @@ function App() {
                 ) : (
                   <p>No responses yet.</p>
                 )}
-              </div>
+              </motion.div>
             ))}
+            <button
+              className="add-question-btn"
+              onClick={() => setIsAddQuestionPopupOpen(true)}
+            >
+              + Add Question
+            </button>
+
+            {/* Add Question Popup */}
+            {isAddQuestionPopupOpen && (
+              <div className="popup-overlay">
+                <motion.div
+                  className="popup"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <button
+                    className="close-btn"
+                    onClick={() => setIsAddQuestionPopupOpen(false)}
+                  >
+                    ×
+                  </button>
+                  <h3>Add New Question</h3>
+                  <input
+                    type="text"
+                    value={newQuestionInput}
+                    onChange={(e) => setNewQuestionInput(e.target.value)}
+                    placeholder="Enter your question"
+                    autoFocus
+                  />
+                  <button className="submit-btn" onClick={handleAddNewQuestion}>
+                    Save
+                  </button>
+                </motion.div>
+              </div>
+            )}
           </div>
         </div>
       )}

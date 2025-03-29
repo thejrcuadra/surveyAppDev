@@ -1,4 +1,7 @@
-/* App.css */
+/* Import Roboto font from Google Fonts for clean typography */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+/* Reset and base styles */
 * {
   margin: 0;
   padding: 0;
@@ -6,38 +9,40 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #f7f7f7;
-  color: #333;
+  font-family: 'Roboto', sans-serif;
+  background-color: #1e2a38;
+  color: #d7e4f0;
 }
 
+/* Main app container */
 .app {
-  max-width: 600px;
+  max-width: 700px;
   margin: 40px auto;
   padding: 20px;
 }
 
-.app-header {
+/* Header */
+.app-header h1 {
+  font-size: 2rem;
+  font-weight: 500;
+  color: #e6f0fa;
   text-align: center;
   margin-bottom: 30px;
 }
 
-.app-header h1 {
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
+/* Survey container */
 .survey-container {
-  margin-bottom: 20px;
+  margin-bottom: 30px;
 }
 
 .no-surveys {
   text-align: center;
-  color: #7f8c8d;
-  font-size: 1rem;
+  color: #a3bffa;
+  font-size: 1.1rem;
+  font-weight: 400;
 }
 
+/* Survey list and items */
 .survey-list {
   list-style: none;
 }
@@ -46,150 +51,291 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: white;
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background-color: #2b3b50;
+  padding: 20px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .survey-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 .survey-item span {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #e6f0fa;
 }
 
+/* Winter-themed buttons with intricate designs */
 .view-btn,
 .respond-btn,
-.delete-btn {
-  margin-left: 10px;
-  padding: 6px 12px;
+.delete-btn,
+.create-btn,
+.add-btn,
+.submit-btn,
+.delete-item-btn,
+.add-question-btn {
+  padding: 10px 20px;
   border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease;
-}
-
-.view-btn {
-  background-color: #3498db;
-  color: white;
-}
-
-.view-btn:hover {
-  background-color: #2980b9;
-}
-
-.respond-btn {
-  background-color: #2ecc71;
-  color: white;
-}
-
-.respond-btn:hover {
-  background-color: #27ae60;
-}
-
-.delete-btn {
-  background-color: #e74c3c;
-  color: white;
-}
-
-.delete-btn:hover {
-  background-color: #c0392b;
-}
-
-.create-btn {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* View Button: Icy Blue Gradient */
+.view-btn {
+  background: linear-gradient(135deg, #4dabf7, #2b6cb0);
+  box-shadow: 0 2px 4px rgba(45, 108, 176, 0.3);
+}
+
+.view-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(45, 108, 176, 0.5);
+  background: linear-gradient(135deg, #63b3ed, #2b6cb0);
+}
+
+/* Respond Button: Evergreen Frost */
+.respond-btn {
+  background: linear-gradient(135deg, #2f855a, #1a4731);
+  box-shadow: 0 2px 4px rgba(31, 99, 67, 0.3);
+}
+
+.respond-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(31, 99, 67, 0.5);
+  background: linear-gradient(135deg, #38a169, #1a4731);
+}
+
+/* Delete Button: Frosty Purple */
+.delete-btn {
+  background: linear-gradient(135deg, #9f7aea, #553c9a);
+  box-shadow: 0 2px 4px rgba(85, 60, 154, 0.3);
+}
+
+.delete-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(85, 60, 154, 0.5);
+  background: linear-gradient(135deg, #b794f4, #553c9a);
+}
+
+/* Delete Item Button: Frosty Red (for respondents and questions) */
+.delete-item-btn {
+  background: linear-gradient(135deg, #f56565, #c53030);
+  padding: 6px;
+  font-size: 0.9rem;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(197, 48, 48, 0.3);
+}
+
+.delete-item-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(197, 48, 48, 0.5);
+  background: linear-gradient(135deg, #fc8181, #c53030);
+}
+
+/* Create Button: Winter Sky */
+.create-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #63b3ed, #2b6cb0);
+  padding: 14px;
+  box-shadow: 0 2px 4px rgba(45, 108, 176, 0.3);
 }
 
 .create-btn:hover {
-  background-color: #2980b9;
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(45, 108, 176, 0.5);
+  background: linear-gradient(135deg, #7f9cf5, #2b6cb0);
 }
 
+/* Add Button: Frosty Silver */
+.add-btn {
+  background: linear-gradient(135deg, #a0aec0, #4a5568);
+  box-shadow: 0 2px 4px rgba(74, 85, 104, 0.3);
+}
+
+.add-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(74, 85, 104, 0.5);
+  background: linear-gradient(135deg, #cbd5e0, #4a5568);
+}
+
+/* Submit Button: Cold Teal */
+.submit-btn {
+  background: linear-gradient(135deg, #4fd1c5, #2c7a7b);
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(44, 122, 123, 0.3);
+}
+
+.submit-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(44, 122, 123, 0.5);
+  background: linear-gradient(135deg, #5efce8, #2c7a7b);
+}
+
+/* Add Question Button: Icy Blue (matches create-btn) */
+.add-question-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #63b3ed, #2b6cb0);
+  padding: 14px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(45, 108, 176, 0.3);
+}
+
+.add-question-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(45, 108, 176, 0.5);
+  background: linear-gradient(135deg, #7f9cf5, #2b6cb0);
+}
+
+/* Modal styles */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
+  animation: fadeIn 0.3s ease-in-out;
 }
 
 .modal {
-  background-color: white;
-  padding: 20px;
-  border-radius: 10px;
+  background-color: #2b3b50;
+  padding: 25px;
+  border-radius: 12px;
   width: 100%;
-  max-width: 500px;
-  max-height: 80vh;
+  max-width: 550px;
+  max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Popup styles (for adding questions) */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure popup is above modal */
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.popup {
+  background-color: #2b3b50;
+  padding: 20px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+.popup h3 {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #b3c7e6;
+  margin-bottom: 15px;
+}
+
+.popup input {
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #4a5568;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: #1e2a38;
+  color: #d7e4f0;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+}
+
+.popup input:focus {
+  border-color: #63b3ed;
+  box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.3);
 }
 
 .close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 15px;
+  right: 15px;
   background: none;
   border: none;
-  font-size: 1.5rem;
-  color: #7f8c8d;
+  font-size: 1.8rem;
+  color: #a3bffa;
   cursor: pointer;
 }
 
 .modal h2 {
-  font-size: 1.5rem;
-  margin-bottom: 15px;
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: #e6f0fa;
+  margin-bottom: 20px;
 }
 
 .modal h3 {
-  font-size: 1.2rem;
-  margin: 15px 0 10px;
-}
-
-.modal form {
-  display: flex;
-  flex-direction: column;
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #b3c7e6;
+  margin: 20px 0 12px;
 }
 
 .modal label {
   font-size: 1rem;
+  font-weight: 500;
+  color: #b3c7e6;
   margin-bottom: 8px;
-  color: #2c3e50;
+  display: block;
 }
 
 .modal input,
 .modal select {
-  padding: 10px;
+  padding: 12px;
   margin-bottom: 15px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  border: 1px solid #4a5568;
+  border-radius: 8px;
   font-size: 1rem;
+  background-color: #1e2a38;
+  color: #d7e4f0;
   outline: none;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
 }
 
 .modal input:focus,
 .modal select:focus {
-  border-color: #3498db;
+  border-color: #63b3ed;
+  box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.3);
+}
+
+/* Form group for create survey modal */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
 }
 
 .respondent-input,
@@ -198,62 +344,103 @@ body {
 .custom-respondent-input {
   display: flex;
   flex-direction: column;
-  margin-bottom: 15px;
+  gap: 10px;
 }
 
 .respondent-input input,
 .question-input input,
+.response-input input,
 .custom-respondent-input input {
-  margin-bottom: 10px;
+  width: 100%;
 }
 
-.add-btn {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.add-btn:hover {
-  background-color: #2980b9;
-}
-
+/* Respondent and question lists in modals */
 .respondent-list,
 .question-list {
   list-style: none;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .respondent-list li,
 .question-list li {
-  padding: 5px 0;
-  color: #2c3e50;
-}
-
-.submit-btn {
-  background-color: #2ecc71;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 6px;
+  padding: 8px 0;
+  color: #d7e4f0;
   font-size: 1rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
+  position: relative;
+  padding-left: 25px;
 }
 
-.submit-btn:hover {
-  background-color: #27ae60;
+.respondent-list li::before,
+.question-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #4fd1c5;
+  font-size: 1.2rem;
 }
 
+/* Styling for respondents in view modal */
+.respondent-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  color: #d7e4f0;
+  font-size: 1rem;
+  position: relative;
+  padding-left: 25px;
+}
+
+.respondent-item::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #4fd1c5;
+  font-size: 1.2rem;
+}
+
+/* Styling for questions in view modal */
 .question-responses {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.question-responses p {
+  font-weight: 500;
+  color: #e6f0fa;
+  margin: 0;
+}
+
+.question-responses ul {
+  list-style: none;
+  margin-top: 10px;
+}
+
+.question-responses li {
+  padding: 5px 0;
+  color: #d7e4f0;
+  font-size: 0.95rem;
 }
 
 .error-message {
-  color: #e74c3c;
+  color: #feb2b2;
   font-size: 0.9rem;
   margin-bottom: 15px;
+}
+
+/* Micro-animations keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
