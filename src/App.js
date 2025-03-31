@@ -4,15 +4,18 @@ import { Dexie } from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { motion } from 'framer-motion';
 
-// Initialize Dexie database
+// Initialize Dexie database with new schema
 const db = new Dexie('surveyApp');
-db.version(1).stores({
-  surveys: '++id, title',
-  respondents: '++id, name, email, surveyId',
-  questions: '++id, text, surveyId, responses',
+db.version(2).stores({
+  surveys: '++id, title',           // Surveys remain standalone
+  respondents: '++id, name, email', // Respondents no longer tied to surveyId
+  questions: '++id, text',          // Questions no longer tied to surveyId, reusable
+  surveyRespondents: '++id, surveyId, respondentId', // Junction table for survey-respondent
+  surveyQuestions: '++id, surveyId, questionId',     // Junction table for survey-question
+  responses: '++id, surveyId, respondentId, questionId, answer, timestamp' // Separate responses table
 });
 
-const { surveys, respondents, questions } = db;
+const { surveys, respondents, questions, surveyRespondents, surveyQuestions, responses } = db;
 
 function App() {
   const allSurveys = useLiveQuery(() => surveys.toArray(), []) || [];
@@ -20,12 +23,12 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
-  const [isAddQuestionPopupOpen, setIsAddQuestionPopupOpen] = useState(false); // New state for popup
+  const [isAddQuestionPopupOpen, setIsAddQuestionPopupOpen] = useState(false);
   const [newSurveyTitle, setNewSurveyTitle] = useState('');
   const [newRespondentName, setNewRespondentName] = useState('');
   const [newRespondentEmail, setNewRespondentEmail] = useState('');
   const [newQuestionText, setNewQuestionText] = useState('');
-  const [newQuestionInput, setNewQuestionInput] = useState(''); // New state for popup input
+  const [newQuestionInput, setNewQuestionInput] = useState('');
   const [tempRespondents, setTempRespondents] = useState([]);
   const [tempQuestions, setTempQuestions] = useState([]);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
@@ -51,7 +54,7 @@ function App() {
     if (newQuestionText) {
       setTempQuestions([
         ...tempQuestions,
-        { id: Date.now(), text: newQuestionText, responses: [] },
+        { id: Date.now(), text: newQuestionText },
       ]);
       setNewQuestionText('');
     }
@@ -60,27 +63,26 @@ function App() {
   const handleCreateSurvey = async (e) => {
     e.preventDefault();
     if (newSurveyTitle && tempRespondents.length > 0 && tempQuestions.length > 0) {
-      const surveyId = await surveys.add({
-        title: newSurveyTitle,
-      });
+      const surveyId = await surveys.add({ title: newSurveyTitle });
 
-      const respondentPromises = tempRespondents.map(respondent =>
-        respondents.add({
-          name: respondent.name,
-          email: respondent.email,
-          surveyId,
-        })
-      );
-      await Promise.all(respondentPromises);
+      // Add respondents if they don't exist, then link to survey
+      const respondentIds = await Promise.all(tempRespondents.map(async (r) => {
+        const existing = await respondents.where('email').equals(r.email).first();
+        if (existing) return existing.id;
+        return respondents.add({ name: r.name, email: r.email });
+      }));
 
-      const questionPromises = tempQuestions.map(question =>
-        questions.add({
-          text: question.text,
-          surveyId,
-          responses: [],
-        })
-      );
-      await Promise.all(questionPromises);
+      // Add questions if they don't exist, then link to survey
+      const questionIds = await Promise.all(tempQuestions.map(async (q) => {
+        const existing = await questions.where('text').equals(q.text).first();
+        if (existing) return existing.id;
+        return questions.add({ text: q.text });
+      }));
+
+      // Link respondents to survey
+      await surveyRespondents.bulkAdd(respondentIds.map(rId => ({ surveyId, respondentId: rId })));
+      // Link questions to survey
+      await surveyQuestions.bulkAdd(questionIds.map(qId => ({ surveyId, questionId: qId })));
 
       setNewSurveyTitle('');
       setTempRespondents([]);
@@ -94,60 +96,69 @@ function App() {
   const handleDeleteSurvey = async (id) => {
     if (window.confirm('Are you sure you want to delete this survey?')) {
       await surveys.delete(id);
-      await respondents.where('surveyId').equals(id).delete();
-      await questions.where('surveyId').equals(id).delete();
+      await surveyRespondents.where('surveyId').equals(id).delete();
+      await surveyQuestions.where('surveyId').equals(id).delete();
+      await responses.where('surveyId').equals(id).delete();
     }
   };
 
   const handleViewSurvey = async (survey) => {
-    const surveyRespondents = await respondents.where('surveyId').equals(survey.id).toArray();
-    const surveyQuestions = await questions.where('surveyId').equals(survey.id).toArray();
-    setSelectedSurvey({ ...survey, respondents: surveyRespondents, questions: surveyQuestions });
+    const surveyRespLinks = await surveyRespondents.where('surveyId').equals(survey.id).toArray();
+    const respondentIds = surveyRespLinks.map(link => link.respondentId);
+    const surveyQuestLinks = await surveyQuestions.where('surveyId').equals(survey.id).toArray();
+    const questionIds = surveyQuestLinks.map(link => link.questionId);
+
+    const surveyRespondentsData = await respondents.where('id').anyOf(respondentIds).toArray();
+    const surveyQuestionsData = await questions.where('id').anyOf(questionIds).toArray();
+    const surveyResponses = await responses.where('surveyId').equals(survey.id).toArray();
+
+    setSelectedSurvey({
+      ...survey,
+      respondents: surveyRespondentsData,
+      questions: surveyQuestionsData.map(q => ({
+        ...q,
+        responses: surveyResponses.filter(r => r.questionId === q.id)
+      }))
+    });
     setIsViewModalOpen(true);
   };
 
   const handleDeleteRespondent = async (respondentId) => {
-    if (window.confirm('Are you sure you want to delete this respondent?')) {
-      await respondents.delete(respondentId);
-      const updatedQuestions = selectedSurvey.questions.map(question => {
-        const updatedResponses = question.responses.filter(
-          response => response.respondentId !== respondentId
-        );
-        return { ...question, responses: updatedResponses };
-      });
-      const updatePromises = updatedQuestions.map(question =>
-        questions.update(question.id, { responses: question.responses })
-      );
-      await Promise.all(updatePromises);
+    if (window.confirm('Are you sure you want to delete this respondent from this survey?')) {
+      await surveyRespondents.where({ surveyId: selectedSurvey.id, respondentId }).delete();
+      await responses.where({ surveyId: selectedSurvey.id, respondentId }).delete();
       setSelectedSurvey({
         ...selectedSurvey,
         respondents: selectedSurvey.respondents.filter(r => r.id !== respondentId),
-        questions: updatedQuestions,
+        questions: selectedSurvey.questions.map(q => ({
+          ...q,
+          responses: q.responses.filter(r => r.respondentId !== respondentId)
+        }))
       });
     }
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (window.confirm('Are you sure you want to delete this question?')) {
-      await questions.delete(questionId);
+    if (window.confirm('Are you sure you want to delete this question from this survey?')) {
+      await surveyQuestions.where({ surveyId: selectedSurvey.id, questionId }).delete();
+      await responses.where({ surveyId: selectedSurvey.id, questionId }).delete();
       setSelectedSurvey({
         ...selectedSurvey,
-        questions: selectedSurvey.questions.filter(q => q.id !== questionId),
+        questions: selectedSurvey.questions.filter(q => q.id !== questionId)
       });
     }
   };
 
   const handleAddNewQuestion = async () => {
     if (newQuestionInput.trim()) {
-      const newQuestion = {
-        text: newQuestionInput,
-        surveyId: selectedSurvey.id,
-        responses: [],
-      };
-      const questionId = await questions.add(newQuestion);
+      const existingQuestion = await questions.where('text').equals(newQuestionInput).first();
+      const questionId = existingQuestion ? existingQuestion.id : await questions.add({ text: newQuestionInput });
+      
+      await surveyQuestions.add({ surveyId: selectedSurvey.id, questionId });
+      const newQuestion = { id: questionId, text: newQuestionInput, responses: [] };
       setSelectedSurvey({
         ...selectedSurvey,
-        questions: [...selectedSurvey.questions, { ...newQuestion, id: questionId }],
+        questions: [...selectedSurvey.questions, newQuestion]
       });
       setNewQuestionInput('');
       setIsAddQuestionPopupOpen(false);
@@ -157,9 +168,15 @@ function App() {
   };
 
   const handleSubmitResponse = async (survey) => {
-    const surveyRespondents = await respondents.where('surveyId').equals(survey.id).toArray();
-    const surveyQuestions = await questions.where('surveyId').equals(survey.id).toArray();
-    setSelectedSurvey({ ...survey, respondents: surveyRespondents, questions: surveyQuestions });
+    const surveyRespLinks = await surveyRespondents.where('surveyId').equals(survey.id).toArray();
+    const respondentIds = surveyRespLinks.map(link => link.respondentId);
+    const surveyQuestLinks = await surveyQuestions.where('surveyId').equals(survey.id).toArray();
+    const questionIds = surveyQuestLinks.map(link => link.questionId);
+
+    const surveyRespondentsData = await respondents.where('id').anyOf(respondentIds).toArray();
+    const surveyQuestionsData = await questions.where('id').anyOf(questionIds).toArray();
+
+    setSelectedSurvey({ ...survey, respondents: surveyRespondentsData, questions: surveyQuestionsData });
     setResponseAnswers({});
     setSelectedRespondentId('');
     setShowCustomFields(false);
@@ -196,45 +213,30 @@ function App() {
         setErrorMessage('Please provide both name and email for the new respondent');
         return;
       }
-      respondentId = await respondents.add({
+      const existingRespondent = await respondents.where('email').equals(customRespondentEmail).first();
+      respondentId = existingRespondent ? existingRespondent.id : await respondents.add({
         name: customRespondentName,
-        email: customRespondentEmail,
-        surveyId: selectedSurvey.id,
+        email: customRespondentEmail
       });
+      await surveyRespondents.add({ surveyId: selectedSurvey.id, respondentId });
       setSelectedSurvey({
         ...selectedSurvey,
-        respondents: [
-          ...selectedSurvey.respondents,
-          { id: respondentId, name: customRespondentName, email: customRespondentEmail, surveyId: selectedSurvey.id }
-        ]
+        respondents: [...selectedSurvey.respondents, { id: respondentId, name: customRespondentName, email: customRespondentEmail }]
       });
     } else if (!respondentId) {
       setErrorMessage('Please select a respondent or add a new one');
       return;
     }
 
-    const updatedQuestions = selectedSurvey.questions.map(question => {
-      if (responseAnswers[question.id]) {
-        return {
-          ...question,
-          responses: [
-            ...question.responses,
-            { 
-              respondentId: parseInt(respondentId), 
-              answer: responseAnswers[question.id],
-              timestamp: Date.now()
-            },
-          ],
-        };
-      }
-      return question;
-    });
+    const responseEntries = Object.entries(responseAnswers).map(([questionId, answer]) => ({
+      surveyId: selectedSurvey.id,
+      respondentId: parseInt(respondentId),
+      questionId: parseInt(questionId),
+      answer,
+      timestamp: Date.now()
+    }));
 
-    const updatePromises = updatedQuestions.map(question =>
-      questions.update(question.id, { responses: question.responses })
-    );
-    await Promise.all(updatePromises);
-
+    await responses.bulkAdd(responseEntries);
     setIsResponseModalOpen(false);
     setResponseAnswers({});
     setSelectedRespondentId('');
@@ -332,6 +334,7 @@ function App() {
                     </li>
                   ))}
                 </ul>
+                <p className="note">Existing respondents will be linked if email matches.</p>
               </div>
 
               <div className="form-group">
@@ -352,6 +355,7 @@ function App() {
                     <li key={question.id}>{question.text}</li>
                   ))}
                 </ul>
+                <p className="note">Existing questions will be reused if text matches.</p>
               </div>
 
               <button type="submit" className="submit-btn">
@@ -384,7 +388,7 @@ function App() {
                   <button
                     className="delete-item-btn"
                     onClick={() => handleDeleteRespondent(respondent.id)}
-                    title="Delete respondent"
+                    title="Delete respondent from survey"
                   >
                     🗑️
                   </button>
@@ -405,7 +409,7 @@ function App() {
                   <button
                     className="delete-item-btn"
                     onClick={() => handleDeleteQuestion(question.id)}
-                    title="Delete question"
+                    title="Delete question from survey"
                   >
                     🗑️
                   </button>

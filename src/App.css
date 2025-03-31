@@ -444,3 +444,9 @@ body {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+.note {
+  font-size: 0.9rem;
+  color: #a3bffa;
+  margin-top: 5px;
+}
