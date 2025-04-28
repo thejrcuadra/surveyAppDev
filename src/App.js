@@ -38,6 +38,11 @@ function App() {
   const [customRespondentEmail, setCustomRespondentEmail] = useState('');
   const [showCustomFields, setShowCustomFields] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [editingRespondentId, setEditingRespondentId] = useState(null);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [editRespondentName, setEditRespondentName] = useState('');
+  const [editRespondentEmail, setEditRespondentEmail] = useState('');
+  const [editQuestionText, setEditQuestionText] = useState('');
 
   const handleAddRespondent = () => {
     if (newRespondentName && newRespondentEmail) {
@@ -246,6 +251,76 @@ function App() {
     setErrorMessage('');
   };
 
+  const handleEditRespondent = async (respondentId) => {
+    const respondent = selectedSurvey.respondents.find(r => r.id === respondentId);
+    if (respondent) {
+      setEditingRespondentId(respondentId);
+      setEditRespondentName(respondent.name);
+      setEditRespondentEmail(respondent.email);
+    }
+  };
+
+  const handleSaveRespondent = async () => {
+    if (editRespondentName && editRespondentEmail) {
+      await respondents.update(editingRespondentId, {
+        name: editRespondentName,
+        email: editRespondentEmail
+      });
+
+      setSelectedSurvey({
+        ...selectedSurvey,
+        respondents: selectedSurvey.respondents.map(r =>
+          r.id === editingRespondentId
+            ? { ...r, name: editRespondentName, email: editRespondentEmail }
+            : r
+        )
+      });
+
+      setEditingRespondentId(null);
+      setEditRespondentName('');
+      setEditRespondentEmail('');
+    }
+  };
+
+  const handleEditQuestion = async (questionId) => {
+    const question = selectedSurvey.questions.find(q => q.id === questionId);
+    if (question) {
+      setEditingQuestionId(questionId);
+      setEditQuestionText(question.text);
+    }
+  };
+
+  const handleSaveQuestion = async () => {
+    if (editQuestionText) {
+      await questions.update(editingQuestionId, {
+        text: editQuestionText
+      });
+
+      setSelectedSurvey({
+        ...selectedSurvey,
+        questions: selectedSurvey.questions.map(q =>
+          q.id === editingQuestionId
+            ? { ...q, text: editQuestionText }
+            : q
+        )
+      });
+
+      setEditingQuestionId(null);
+      setEditQuestionText('');
+    }
+  };
+
+  const handleCancelEdit = (type) => {
+    if (type === 'respondent') {
+      setEditingRespondentId(null);
+      setEditRespondentName('');
+      setEditRespondentEmail('');
+    } else if (type === 'question') {
+      setEditingQuestionId(null);
+      setEditQuestionText('');
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -385,16 +460,43 @@ function App() {
                   transition={{ duration: 0.3 }}
                 >
                   <span>{respondent.name} ({respondent.email})</span>
-                  <button
-                    className="delete-item-btn"
-                    onClick={() => handleDeleteRespondent(respondent.id)}
-                    title="Delete respondent from survey"
-                  >
-                    🗑️
-                  </button>
+                  <div className="action-buttons">
+                    <button
+                      className="edit-item-btn"
+                      onClick={() => handleEditRespondent(respondent.id)}
+                      title="Edit respondent"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="delete-item-btn"
+                      onClick={() => handleDeleteRespondent(respondent.id)}
+                      title="Delete respondent from survey"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </motion.li>
               ))}
             </ul>
+            {editingRespondentId && (
+              <div className="edit-respondent">
+                <input
+                  type="text"
+                  value={editRespondentName}
+                  onChange={(e) => setEditRespondentName(e.target.value)}
+                  placeholder="Edit name"
+                />
+                <input
+                  type="email"
+                  value={editRespondentEmail}
+                  onChange={(e) => setEditRespondentEmail(e.target.value)}
+                  placeholder="Edit email"
+                />
+                <button onClick={handleSaveRespondent}>Save</button>
+                <button onClick={() => handleCancelEdit('respondent')}>Cancel</button>
+              </div>
+            )}
             <h3>Questions and Responses</h3>
             {selectedSurvey.questions.map(question => (
               <motion.div
@@ -406,14 +508,35 @@ function App() {
               >
                 <div className="question-header">
                   <p><strong>{question.text}</strong></p>
-                  <button
-                    className="delete-item-btn"
-                    onClick={() => handleDeleteQuestion(question.id)}
-                    title="Delete question from survey"
-                  >
-                    🗑️
-                  </button>
+                  <div className="action-buttons">
+                    <button
+                      className="edit-item-btn"
+                      onClick={() => handleEditQuestion(question.id)}
+                      title="Edit question"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="delete-item-btn"
+                      onClick={() => handleDeleteQuestion(question.id)}
+                      title="Delete question from survey"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
+                {editingQuestionId === question.id && (
+                  <div className="edit-question">
+                    <input
+                      type="text"
+                      value={editQuestionText}
+                      onChange={(e) => setEditQuestionText(e.target.value)}
+                      placeholder="Edit question"
+                    />
+                    <button onClick={handleSaveQuestion}>Save</button>
+                    <button onClick={() => handleCancelEdit('question')}>Cancel</button>
+                  </div>
+                )}
                 {question.responses.length > 0 ? (
                   <ul>
                     {question.responses.map((response, idx) => {

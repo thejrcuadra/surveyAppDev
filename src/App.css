@@ -147,6 +147,33 @@ body {
   background: linear-gradient(135deg, #fc8181, #c53030);
 }
 
+/* Edit Item Button: Frosty Blue */
+.edit-item-btn {
+  background: linear-gradient(135deg, #63b3ed, #2b6cb0);
+  padding: 6px;
+  font-size: 0.9rem;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(43, 108, 176, 0.3);
+  margin-right: 2px; /* Reduced from 4px to 2px */
+}
+
+.edit-item-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(43, 108, 176, 0.5);
+  background: linear-gradient(135deg, #90cdf4, #2b6cb0);
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px; /* Added gap property to control spacing between buttons */
+}
+
 /* Create Button: Winter Sky */
 .create-btn {
   width: 100%;
@@ -409,6 +436,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  gap: 2px; /* Added gap property to control spacing */
 }
 
 .question-responses p {
@@ -449,4 +477,42 @@ body {
   font-size: 0.9rem;
   color: #a3bffa;
   margin-top: 5px;
+}
+
+/* Edit forms styles */
+.edit-respondent,
+.edit-question {
+  background-color: #1e2a38;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 10px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.edit-respondent input,
+.edit-question input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.edit-respondent button,
+.edit-question button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #ffffff;
+}
+
+.edit-respondent button:first-of-type,
+.edit-question button:first-of-type {
+  background: linear-gradient(135deg, #4fd1c5, #2c7a7b);
+}
+
+.edit-respondent button:last-of-type,
+.edit-question button:last-of-type {
+  background: linear-gradient(135deg, #f56565, #c53030);
 }
