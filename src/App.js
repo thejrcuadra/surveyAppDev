@@ -12,14 +12,45 @@ db.version(2).stores({
   questions: '++id, text',          // Questions no longer tied to surveyId, reusable
   surveyRespondents: '++id, surveyId, respondentId', // Junction table for survey-respondent
   surveyQuestions: '++id, surveyId, questionId',     // Junction table for survey-question
-  responses: '++id, surveyId, respondentId, questionId, answer, timestamp' // Separate responses table
+  responses: '++id, surveyId, respondentId, questionId, answer, timestamp', // Separate responses table
+  publishSurvey: '++id, surveyId, respondentId, questionId' // Separate table for published surveys
 });
 
-const { surveys, respondents, questions, surveyRespondents, surveyQuestions, responses } = db;
+const { surveys, respondents, questions, surveyRespondents, surveyQuestions, responses, publishSurvey } = db;
 
 function App() {
   const allSurveys = useLiveQuery(() => surveys.toArray(), []) || [];
-  
+  const allRespondents = useLiveQuery(() => respondents.toArray(), []) || [];
+  const allQuestions = useLiveQuery(() => questions.toArray(), []) || [];
+  const publishedSurveys = useLiveQuery(async () => {
+    const published = await publishSurvey.toArray();
+    const groupedBySurvey = {};
+    
+    for (const pub of published) {
+      if (!groupedBySurvey[pub.surveyId]) {
+        const survey = await surveys.get(pub.surveyId);
+        const respondent = await respondents.get(pub.respondentId);
+        const question = await questions.get(pub.questionId);
+        groupedBySurvey[pub.surveyId] = {
+          survey,
+          respondents: [{ id: pub.respondentId, ...respondent }],
+          questions: [{ id: pub.questionId, ...question }]
+        };
+      } else {
+        if (!groupedBySurvey[pub.surveyId].respondents.find(r => r.id === pub.respondentId)) {
+          const respondent = await respondents.get(pub.respondentId);
+          groupedBySurvey[pub.surveyId].respondents.push({ id: pub.respondentId, ...respondent });
+        }
+        if (!groupedBySurvey[pub.surveyId].questions.find(q => q.id === pub.questionId)) {
+          const question = await questions.get(pub.questionId);
+          groupedBySurvey[pub.surveyId].questions.push({ id: pub.questionId, ...question });
+        }
+      }
+    }
+    
+    return Object.values(groupedBySurvey);
+  }, []) || [];
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -43,6 +74,17 @@ function App() {
   const [editRespondentName, setEditRespondentName] = useState('');
   const [editRespondentEmail, setEditRespondentEmail] = useState('');
   const [editQuestionText, setEditQuestionText] = useState('');
+  const [selectedPublishSurveyId, setSelectedPublishSurveyId] = useState('');
+  const [selectedPublishRespondentIds, setSelectedPublishRespondentIds] = useState([]);
+  const [selectedPublishQuestionIds, setSelectedPublishQuestionIds] = useState([]);
+  const [publishMessage, setPublishMessage] = useState('');
+  const [showPublishMessage, setShowPublishMessage] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [showSelectedItems, setShowSelectedItems] = useState({
+    respondents: true,
+    questions: true
+  });
+  const [selectedPublishedSurveyId, setSelectedPublishedSurveyId] = useState(null);
 
   const handleAddRespondent = () => {
     if (newRespondentName && newRespondentEmail) {
@@ -321,10 +363,75 @@ function App() {
     }
   };
 
+  const handlePublishSurvey = async (e) => {
+    e.preventDefault();
+    if (selectedPublishSurveyId && selectedPublishRespondentIds.length > 0 && selectedPublishQuestionIds.length > 0) {
+      setIsPublishing(true);
+      try {
+        // Add all combinations to publishSurvey table
+        const publishEntries = [];
+        for (const respondentId of selectedPublishRespondentIds) {
+          for (const questionId of selectedPublishQuestionIds) {
+            publishEntries.push({
+              surveyId: parseInt(selectedPublishSurveyId),
+              respondentId: parseInt(respondentId),
+              questionId: parseInt(questionId)
+            });
+          }
+        }
+        
+        await publishSurvey.bulkAdd(publishEntries);
+        setPublishMessage('Congratulations! Your survey has been published!');
+        setShowPublishMessage(true);
+        
+        // Reset selections
+        setSelectedPublishSurveyId('');
+        setSelectedPublishRespondentIds([]);
+        setSelectedPublishQuestionIds([]);
+
+        setTimeout(() => {
+          setShowPublishMessage(false);
+          setPublishMessage('');
+        }, 3000);
+      } catch (error) {
+        setPublishMessage('Failed to publish survey. Please try again.');
+        setShowPublishMessage(true);
+        setTimeout(() => {
+          setShowPublishMessage(false);
+          setPublishMessage('');
+        }, 3000);
+      } finally {
+        setIsPublishing(false);
+      }
+    }
+  };
+
+  const handlePublishSelect = (type, id) => {
+    if (type === 'respondent') {
+      setSelectedPublishRespondentIds(prev => [...prev, id]);
+    } else if (type === 'question') {
+      setSelectedPublishQuestionIds(prev => [...prev, id]);
+    }
+  };
+
+  const handleRemoveSelected = (type, id) => {
+    if (type === 'respondent') {
+      setSelectedPublishRespondentIds(prev => prev.filter(respId => respId !== id));
+    } else if (type === 'question') {
+      setSelectedPublishQuestionIds(prev => prev.filter(qId => qId !== id));
+    }
+  };
+
+  const handleUnpublishSurvey = async (surveyId) => {
+    if (window.confirm('Are you sure you want to unpublish this survey?')) {
+      await publishSurvey.where('surveyId').equals(surveyId).delete();
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Surveys!</h1>
+        <h1>Create Surveys!</h1>
       </header>
       <main className="survey-container">
         {allSurveys.length === 0 ? (
@@ -362,6 +469,251 @@ function App() {
       <button className="create-btn" onClick={() => setIsModalOpen(true)}>
         + New Survey
       </button>
+
+      {/* Publish Survey Section */}
+      <section className="publish-survey-section">
+        <h2>Publish Survey</h2>
+        <form onSubmit={handlePublishSurvey}>
+          <div className="form-group">
+            <label htmlFor="publish-survey-select">Select Survey</label>
+            <select
+              id="publish-survey-select"
+              value={selectedPublishSurveyId}
+              onChange={(e) => setSelectedPublishSurveyId(e.target.value)}
+              required
+              disabled={isPublishing}
+            >
+              <option value="">-- Select Survey --</option>
+              {allSurveys.map(survey => (
+                <option key={survey.id} value={survey.id}>{survey.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <div className="selection-container">
+              <div className="selection-header">
+                <label>Select Respondents</label>
+                <button 
+                  type="button" 
+                  className="toggle-btn"
+                  onClick={() => setShowSelectedItems(prev => ({ ...prev, respondents: !prev.respondents }))}
+                >
+                  {showSelectedItems.respondents ? 'Hide Selected' : 'Show Selected'}
+                </button>
+              </div>
+              <div className="dropdown-and-selected">
+                <select
+                  className="selection-dropdown"
+                  onChange={(e) => handlePublishSelect('respondent', e.target.value)}
+                  value=""
+                  disabled={isPublishing}
+                >
+                  <option value="">-- Select Respondent --</option>
+                  {allRespondents
+                    .filter(r => !selectedPublishRespondentIds.includes(r.id.toString()))
+                    .map(respondent => (
+                      <option key={respondent.id} value={respondent.id}>
+                        {respondent.name} ({respondent.email})
+                      </option>
+                    ))}
+                </select>
+
+                {showSelectedItems.respondents && selectedPublishRespondentIds.length > 0 && (
+                  <div className="selected-items">
+                    <h4>Selected Respondents:</h4>
+                    <ul>
+                      {selectedPublishRespondentIds.map(id => {
+                        const respondent = allRespondents.find(r => r.id.toString() === id.toString());
+                        return respondent ? (
+                          <motion.li
+                            key={id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <span>{respondent.name}</span>
+                            <button
+                              type="button"
+                              className="remove-item-btn"
+                              onClick={() => handleRemoveSelected('respondent', id)}
+                              disabled={isPublishing}
+                            >
+                              ×
+                            </button>
+                          </motion.li>
+                        ) : null;
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="selection-container">
+              <div className="selection-header">
+                <label>Select Questions</label>
+                <button 
+                  type="button" 
+                  className="toggle-btn"
+                  onClick={() => setShowSelectedItems(prev => ({ ...prev, questions: !prev.questions }))}
+                >
+                  {showSelectedItems.questions ? 'Hide Selected' : 'Show Selected'}
+                </button>
+              </div>
+              <div className="dropdown-and-selected">
+                <select
+                  className="selection-dropdown"
+                  onChange={(e) => handlePublishSelect('question', e.target.value)}
+                  value=""
+                  disabled={isPublishing}
+                >
+                  <option value="">-- Select Question --</option>
+                  {allQuestions
+                    .filter(q => !selectedPublishQuestionIds.includes(q.id.toString()))
+                    .map(question => (
+                      <option key={question.id} value={question.id}>
+                        {question.text}
+                      </option>
+                    ))}
+                </select>
+
+                {showSelectedItems.questions && selectedPublishQuestionIds.length > 0 && (
+                  <div className="selected-items">
+                    <h4>Selected Questions:</h4>
+                    <ul>
+                      {selectedPublishQuestionIds.map(id => {
+                        const question = allQuestions.find(q => q.id.toString() === id.toString());
+                        return question ? (
+                          <motion.li
+                            key={id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <span>{question.text}</span>
+                            <button
+                              type="button"
+                              className="remove-item-btn"
+                              onClick={() => handleRemoveSelected('question', id)}
+                              disabled={isPublishing}
+                            >
+                              ×
+                            </button>
+                          </motion.li>
+                        ) : null;
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="publish-btn"
+            disabled={isPublishing || !selectedPublishSurveyId || selectedPublishRespondentIds.length === 0 || selectedPublishQuestionIds.length === 0}
+          >
+            {isPublishing ? 'Publishing...' : 'Publish'}
+          </button>
+        </form>
+
+        {showPublishMessage && (
+          <motion.div 
+            className="publish-message"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            {publishMessage}
+          </motion.div>
+        )}
+      </section>
+
+      {/* Published Surveys Section */}
+      <section className="published-surveys-section">
+        <h2>Published Surveys</h2>
+        {publishedSurveys.length === 0 ? (
+          <p className="no-surveys">No published surveys yet.</p>
+        ) : (
+          <div className="published-surveys-container">
+            <div className="published-survey-select">
+              <select
+                value={selectedPublishedSurveyId || ''}
+                onChange={(e) => setSelectedPublishedSurveyId(e.target.value ? parseInt(e.target.value) : null)}
+                className="published-survey-dropdown"
+              >
+                <option value="">-- Select a Published Survey --</option>
+                {publishedSurveys.map(({ survey }) => (
+                  <option key={survey.id} value={survey.id}>
+                    {survey.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedPublishedSurveyId && (
+              <motion.div 
+                className="published-survey-item"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                {publishedSurveys.map(({ survey, respondents, questions }) => {
+                  if (survey.id === parseInt(selectedPublishedSurveyId)) {
+                    return (
+                      <React.Fragment key={survey.id}>
+                        <div className="published-survey-header">
+                          <h3>{survey.title}</h3>
+                          <button
+                            className="unpublish-btn"
+                            onClick={() => {
+                              handleUnpublishSurvey(survey.id);
+                              setSelectedPublishedSurveyId(null);
+                            }}
+                            title="Unpublish Survey"
+                          >
+                            Unpublish
+                          </button>
+                        </div>
+
+                        <div className="published-survey-details">
+                          <div className="published-section">
+                            <h4>Selected Respondents:</h4>
+                            <ul>
+                              {respondents.map(respondent => (
+                                <li key={respondent.id}>
+                                  {respondent.name} ({respondent.email})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="published-section">
+                            <h4>Selected Questions:</h4>
+                            <ul>
+                              {questions.map(question => (
+                                <li key={question.id}>{question.text}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
+                  return null;
+                })}
+              </motion.div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Create Survey Modal */}
       {isModalOpen && (
