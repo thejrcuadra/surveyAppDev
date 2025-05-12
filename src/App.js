@@ -640,7 +640,7 @@ function App() {
       <section className="published-surveys-section">
         <h2>Published Surveys</h2>
         {publishedSurveys.length === 0 ? (
-          <p className="no-surveys">No published surveys yet.</p>
+          <p className="no-surveys">No published surveys yet!</p>
         ) : (
           <div className="published-surveys-container">
             <div className="published-survey-select">
